@@ -3,21 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SEAQ Telecommunication - Realtime Project Tracker</title>
+  <title>SeaQ Communication - Realtime Project Tracker</title>
   
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-
   <style>
     :root {
-      --bg-overlay: rgba(15, 23, 42, 0.85);
-      --panel-bg: rgba(30, 41, 59, 0.75);
+      --bg-overlay: rgba(15, 23, 42, 0.88);
+      --panel-bg: rgba(30, 41, 59, 0.8);
       --panel-border: rgba(255, 255, 255, 0.12);
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
       
-      /* Dynamic status colors */
       --status-not-started-bg: rgba(100, 116, 139, 0.25);
       --status-not-started-border: rgba(148, 163, 184, 0.3);
       --status-not-started-text: #94a3b8;
@@ -50,8 +45,8 @@
     .app { display: flex; height: 100vh; overflow: hidden; }
 
     .sidebar {
-      width: 330px;
-      background: rgba(15, 23, 42, 0.88);
+      width: 320px;
+      background: rgba(15, 23, 42, 0.92);
       backdrop-filter: blur(12px);
       border-right: 1px solid var(--panel-border);
       padding: 20px 16px;
@@ -73,36 +68,12 @@
       font-weight: 800;
       letter-spacing: 1.5px;
       color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
     .brand-title span {
       background: linear-gradient(135deg, #38bdf8, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-    }
-
-    .sync-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #6ee7b7;
-    }
-
-    .sync-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #10b981;
-      box-shadow: 0 0 8px #10b981;
     }
 
     .project-list {
@@ -130,16 +101,12 @@
 
     .project-item:hover {
       background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.2);
     }
 
     .project-item.active {
       background: linear-gradient(135deg, rgba(37, 99, 235, 0.4), rgba(29, 78, 216, 0.5));
       border-color: rgba(96, 165, 250, 0.5);
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
     }
-
-    .project-name { font-size: 15px; font-weight: 700; }
 
     .status-badge {
       padding: 4px 10px;
@@ -193,41 +160,20 @@
       gap: 16px;
     }
 
-    .btn {
-      border: none;
-      border-radius: 10px;
-      padding: 10px 16px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    .horizontal-systems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
     }
-
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.4); }
-
-    .input {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid var(--panel-border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      color: #fff;
-      outline: none;
-      font-size: 14px;
-    }
-    .input:focus { border-color: #60a5fa; }
 
     .system-card {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(15, 23, 42, 0.65);
       border: 1px solid var(--panel-border);
       border-radius: 14px;
       padding: 16px;
-      margin-bottom: 16px;
-      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
 
     .system-card.in-progress {
@@ -244,55 +190,127 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
     }
 
-    .system-title { font-size: 18px; font-weight: 700; }
+    .system-title { font-size: 16px; font-weight: 700; color: #fff; }
 
-    .task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-top: 6px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+      padding-bottom: 4px;
+    }
+
+    .task-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
 
     .task-item {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: 8px;
+      padding: 8px 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
     }
 
-    .task-left { display: flex; align-items: center; gap: 10px; flex: 1; }
-    .checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #10b981; }
+    .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #10b981; }
+
+    .chart-container {
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .chart-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-bg {
+      height: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.not-started { background: #64748b; }
+    .progress-bar-fill.in-progress { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .progress-bar-fill.completed { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+
+    .input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #fff;
+      outline: none;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-title">SEAQ <span>TELECOM</span></div>
-        <div class="sync-badge">
-          <div class="sync-dot"></div> Realtime
-        </div>
+        <div class="brand-title">SeaQ <span>COMMUNICATION</span></div>
       </div>
       <ul id="projectList" class="project-list"></ul>
       <div style="margin-top: 16px; display: flex; gap: 8px;">
-        <input id="newProjectInput" class="input" style="flex:1" placeholder="New Project ID (e.g., NB969)" />
+        <input id="newProjectInput" class="input" style="flex:1" placeholder="New Project (e.g. NB969)" />
         <button id="addProjectBtn" class="btn btn-primary">+ Create</button>
       </div>
     </aside>
 
     <main class="main">
       <div class="topbar glass-panel">
-        <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px;">Loading...</h1>
+        <div>
+          <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px;">Project Tracker</h1>
+          <div id="overallChart" class="chart-container" style="width: 320px; margin-top: 10px;"></div>
+        </div>
         <button id="deleteProjectBtn" class="btn btn-danger">Delete Project</button>
       </div>
 
-      <div id="systemsContainer" class="glass-panel"></div>
+      <div id="systemsGrid" class="horizontal-systems-grid"></div>
     </main>
   </div>
 
   <script>
-    // Standard Telecommunication Systems for Tier 2
     const DEFAULT_SYSTEMS = [
       "41702 - Master Clock",
       "42508 - Automatic Telephone System",
@@ -304,20 +322,26 @@
       "85502 - Rack & Infrastructure"
     ];
 
-    // Standard Checklist Tasks for Tier 3 in English
-    const DEFAULT_TASKS = [
+    const STANDARD_TASKS = [
       "Installation & Wiring Check",
       "Pre-Commissioning Test Run",
-      "Completion, Show HAT & Handover"
+      "Completion & Show HAT"
     ];
 
-    let projects = JSON.parse(localStorage.getItem('seaq_projects_en')) || [
+    const EQUIPMENT_TASKS = [
+      "Main Control Rack Inspection",
+      "Terminal & Sensor Check",
+      "Power Supply & Battery Backup Test"
+    ];
+
+    let projects = JSON.parse(localStorage.getItem('seaq_comms_projects')) || [
       {
         id: 'nb968',
         name: 'NB968',
         systems: DEFAULT_SYSTEMS.map(sys => ({
           name: sys,
-          tasks: DEFAULT_TASKS.map(t => ({ title: t, completed: false }))
+          tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+          equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false }))
         }))
       }
     ];
@@ -325,91 +349,121 @@
     let activeProjectId = projects[0]?.id || 'nb968';
 
     function saveAndRender() {
-      localStorage.setItem('seaq_projects_en', JSON.stringify(projects));
+      localStorage.setItem('seaq_comms_projects', JSON.stringify(projects));
       render();
     }
 
-    function getSystemStatus(system) {
-      const total = system.tasks.length;
-      if (total === 0) return 'not-started';
-      const completed = system.tasks.filter(t => t.completed).length;
-      if (completed === 0) return 'not-started';
-      if (completed === total) return 'completed';
-      return 'in-progress';
+    function calculateSystemProgress(sys) {
+      const allItems = [...sys.tasks, ...sys.equipment];
+      if (allItems.length === 0) return 0;
+      const done = allItems.filter(i => i.completed).length;
+      return Math.round((done / allItems.length) * 100);
     }
 
     function render() {
-      // Sidebar Projects
       const projectListEl = document.getElementById('projectList');
       projectListEl.innerHTML = '';
 
       projects.forEach(p => {
-        let totalTasks = 0, completedTasks = 0;
+        let totalItems = 0, doneItems = 0;
         p.systems.forEach(s => {
-          totalTasks += s.tasks.length;
-          completedTasks += s.tasks.filter(t => t.completed).length;
+          totalItems += s.tasks.length + s.equipment.length;
+          doneItems += s.tasks.filter(t => t.completed).length + s.equipment.filter(e => e.completed).length;
         });
 
-        let statusClass = 'not-started';
-        let statusText = 'Not Started';
-        if (completedTasks > 0 && completedTasks < totalTasks) {
-          statusClass = 'in-progress';
-          statusText = 'In Progress';
-        } else if (totalTasks > 0 && completedTasks === totalTasks) {
-          statusClass = 'completed';
-          statusText = 'Completed';
-        }
+        const percent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+        let statusClass = percent === 100 ? 'completed' : (percent > 0 ? 'in-progress' : 'not-started');
+        let statusText = percent === 100 ? 'Completed' : (percent > 0 ? 'In Progress' : 'Not Started');
 
         const li = document.createElement('li');
         li.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
         li.onclick = () => { activeProjectId = p.id; render(); };
         li.innerHTML = `
-          <span class="project-name">${p.name}</span>
+          <span style="font-weight:700;">${p.name}</span>
           <span class="status-badge ${statusClass}">${statusText}</span>
         `;
         projectListEl.appendChild(li);
       });
 
-      // Active Project View
       const activeProject = projects.find(p => p.id === activeProjectId);
       if (!activeProject) return;
 
       document.getElementById('selectedProjectTitle').innerText = `Project: ${activeProject.name}`;
 
-      const container = document.getElementById('systemsContainer');
-      container.innerHTML = '';
+      let projectTotal = 0, projectDone = 0;
+      activeProject.systems.forEach(s => {
+        projectTotal += s.tasks.length + s.equipment.length;
+        projectDone += s.tasks.filter(t => t.completed).length + s.equipment.filter(e => e.completed).length;
+      });
+      const overallPercent = projectTotal > 0 ? Math.round((projectDone / projectTotal) * 100) : 0;
+      let overallClass = overallPercent === 100 ? 'completed' : (overallPercent > 0 ? 'in-progress' : 'not-started');
+
+      document.getElementById('overallChart').innerHTML = `
+        <div class="chart-label">
+          <span>Overall Project Progress</span>
+          <span>${overallPercent}%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${overallClass}" style="width: ${overallPercent}%"></div>
+        </div>
+      `;
+
+      const grid = document.getElementById('systemsGrid');
+      grid.innerHTML = '';
 
       activeProject.systems.forEach((sys, sysIdx) => {
-        const sysStatus = getSystemStatus(sys);
-        let sysStatusText = sysStatus === 'completed' ? 'Completed' : (sysStatus === 'in-progress' ? 'In Progress' : 'Not Started');
+        const sysPercent = calculateSystemProgress(sys);
+        let sysClass = sysPercent === 100 ? 'completed' : (sysPercent > 0 ? 'in-progress' : 'not-started');
+        let sysStatusText = sysPercent === 100 ? 'Completed' : (sysPercent > 0 ? 'In Progress' : 'Not Started');
 
         const card = document.createElement('div');
-        card.className = `system-card ${sysStatus}`;
-        
-        let tasksHTML = sys.tasks.map((t, taskIdx) => `
+        card.className = `system-card ${sysClass}`;
+
+        const tasksHTML = sys.tasks.map((t, idx) => `
           <li class="task-item">
-            <div class="task-left">
-              <input type="checkbox" class="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask('${activeProject.id}', ${sysIdx}, ${taskIdx})">
-              <span style="${t.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.title}</span>
-            </div>
+            <input type="checkbox" class="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'tasks', ${idx})">
+            <span style="${t.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.title}</span>
+          </li>
+        `).join('');
+
+        const equipHTML = sys.equipment.map((e, idx) => `
+          <li class="task-item">
+            <input type="checkbox" class="checkbox" ${e.completed ? 'checked' : ''} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'equipment', ${idx})">
+            <span style="${e.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${e.title}</span>
           </li>
         `).join('');
 
         card.innerHTML = `
           <div class="system-header">
             <div class="system-title">${sys.name}</div>
-            <span class="status-badge ${sysStatus}">${sysStatusText}</span>
+            <span class="status-badge ${sysClass}">${sysStatusText}</span>
           </div>
+
+          <div class="section-label">General Tasks</div>
           <ul class="task-list">${tasksHTML}</ul>
+
+          <div class="section-label">Equipment Check</div>
+          <ul class="task-list">${equipHTML}</ul>
+
+          <div class="chart-container">
+            <div class="chart-label">
+              <span>System Progress Bar Chart</span>
+              <span>${sysPercent}%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill ${sysClass}" style="width: ${sysPercent}%"></div>
+            </div>
+          </div>
         `;
-        container.appendChild(card);
+
+        grid.appendChild(card);
       });
     }
 
-    function toggleTask(projId, sysIdx, taskIdx) {
+    function toggleItem(projId, sysIdx, type, itemIdx) {
       const proj = projects.find(p => p.id === projId);
       if (proj) {
-        proj.systems[sysIdx].tasks[taskIdx].completed = !proj.systems[sysIdx].tasks[taskIdx].completed;
+        proj.systems[sysIdx][type][itemIdx].completed = !proj.systems[sysIdx][type][itemIdx].completed;
         saveAndRender();
       }
     }
@@ -417,14 +471,15 @@
     document.getElementById('addProjectBtn').onclick = () => {
       const input = document.getElementById('newProjectInput');
       const name = input.value.trim();
-      if (!name) return alert('Please enter a project ID!');
+      if (!name) return alert('Please enter project name');
 
       const newProj = {
         id: 'proj_' + Date.now(),
         name: name,
         systems: DEFAULT_SYSTEMS.map(sys => ({
           name: sys,
-          tasks: DEFAULT_TASKS.map(t => ({ title: t, completed: false }))
+          tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+          equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false }))
         }))
       };
 
@@ -436,7 +491,7 @@
 
     document.getElementById('deleteProjectBtn').onclick = () => {
       if (projects.length <= 1) return alert('Cannot delete all projects!');
-      if (confirm('Are you sure you want to delete this project?')) {
+      if (confirm('Delete this project?')) {
         projects = projects.filter(p => p.id !== activeProjectId);
         activeProjectId = projects[0].id;
         saveAndRender();
