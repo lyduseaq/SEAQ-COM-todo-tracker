@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeaQ Communication - Realtime Project Tracker</title>
+  
+  <!-- Firebase SDKs (v10 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-overlay: rgba(15, 23, 42, 0.82);
+      --panel-bg: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.15);
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      
+      --status-not-started-bg: rgba(100, 116, 139, 0.3);
+      --status-not-started-border: rgba(148, 163, 184, 0.4);
+      --status-not-started-text: #cbd5e1;
+      
+      --status-in-progress-bg: rgba(245, 158, 11, 0.25);
+      --status-in-progress-border: rgba(245, 158, 11, 0.6);
+      --status-in-progress-text: #fef08a;
+
+      --status-completed-bg: rgba(16, 185, 129, 0.25);
+      --status-completed-border: rgba(16, 185, 129, 0.6);
+      --status-completed-text: #86efac;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(var(--bg-overlay), var(--bg-overlay)),
+                  url('18321f15-f4f9-473a-9d6a-a537c3c68de9.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: var(--text-main);
+    }
+
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    .sidebar {
+      width: 320px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--panel-border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+    }
+
+    .brand-title span {
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .role-badge.master {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      color: #fef08a;
+    }
+
+    .role-badge.viewer {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      color: #38bdf8;
+    }
+
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .project-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .project-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+    }
+
+    .project-item:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .project-item.active {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.5), rgba(29, 78, 216, 0.6));
+      border-color: rgba(96, 165, 250, 0.6);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .status-badge.not-started {
+      background: var(--status-not-started-bg);
+      border-color: var(--status-not-started-border);
+      color: var(--status-not-started-text);
+    }
+
+    .status-badge.in-progress {
+      background: var(--status-in-progress-bg);
+      border-color: var(--status-in-progress-border);
+      color: var(--status-in-progress-text);
+    }
+
+    .status-badge.completed {
+      background: var(--status-completed-bg);
+      border-color: var(--status-completed-border);
+      color: var(--status-completed-text);
+    }
+
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .glass-panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .horizontal-systems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .system-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .system-card.in-progress {
+      border-color: var(--status-in-progress-border);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .system-card.completed {
+      border-color: var(--status-completed-border);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .system-card.completed::after {
+      content: "COMPLETED";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-12deg);
+      font-size: 32px;
+      font-weight: 900;
+      color: rgba(16, 185, 129, 0.2);
+      letter-spacing: 4px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .system-header, .section-label, .task-list, .chart-container, .add-inline-wrap, .note-container {
+      position: relative;
+      z-index: 1;
+    }
+
+    .system-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .system-title { font-size: 16px; font-weight: 700; color: #fff; }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-top: 6px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+      padding-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .task-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .task-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #10b981; }
+    .checkbox:disabled { cursor: not-allowed; opacity: 0.6; }
+
+    .add-inline-wrap {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .input-sm {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: #fff;
+      font-size: 12px;
+      flex: 1;
+      outline: none;
+    }
+
+    .btn-sm {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-sm:hover {
+      background: rgba(56, 189, 248, 0.4);
+    }
+
+    .note-container {
+      margin-top: 8px;
+    }
+
+    .note-textarea {
+      width: 100%;
+      height: 60px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: #e2e8f0;
+      font-size: 12px;
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .note-textarea:focus {
+      border-color: #38bdf8;
+    }
+
+    .note-textarea:disabled {
+      background: rgba(15, 23, 42, 0.5);
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .chart-container {
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .chart-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-bg {
+      height: 12px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.not-started { background: #64748b; }
+    .progress-bar-fill.in-progress { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .progress-bar-fill.completed { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-success { background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; }
+    .btn-success:hover { background: rgba(16, 185, 129, 0.4); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+
+    .input {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #fff;
+      outline: none;
+      font-size: 14px;
+    }
+
+    /* Ẩn các nút điều khiển khi ở chế độ Viewer */
+    body.is-viewer .master-only {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-title">SeaQ <span>COMMUNICATION</span></div>
+        <div id="roleBadge" class="role-badge master">
+          <div class="sync-dot"></div> <span id="roleText">MASTER</span>
+        </div>
+      </div>
+      <ul id="projectList" class="project-list"></ul>
+      <div class="master-only" style="margin-top: 16px; display: flex; gap: 8px;">
+        <input id="newProjectInput" class="input" style="flex:1" placeholder="New Project (e.g. NB969)" />
+        <button id="addProjectBtn" class="btn btn-primary">+ Create</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar glass-panel">
+        <div>
+          <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px;">Connecting Cloud...</h1>
+          <div id="overallChart" class="chart-container" style="width: 320px; margin-top: 10px;"></div>
+        </div>
+        
+        <div class="topbar-actions master-only">
+          <input id="newSystemInput" class="input" style="width: 240px;" placeholder="New System Name" />
+          <button id="addSystemBtn" class="btn btn-success">+ Add System</button>
+          <button id="deleteProjectBtn" class="btn btn-danger">Delete Project</button>
+        </div>
+      </div>
+
+      <div id="systemsGrid" class="horizontal-systems-grid"></div>
+    </main>
+  </div>
+
+  <script>
+    // Kiểm tra Role từ URL (Mặc định là Master, chỉ khi có ?role=viewer mới chuyển sang chế độ xem)
+    const urlParams = new URLSearchParams(window.location.search);
+    const IS_VIEWER = urlParams.get('role') === 'viewer';
+    const IS_MASTER = !IS_VIEWER;
+
+    if (IS_VIEWER) {
+      document.body.classList.add('is-viewer');
+      const badge = document.getElementById('roleBadge');
+      badge.className = 'role-badge viewer';
+      document.getElementById('roleText').innerText = 'VIEWER ONLY';
+    }
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-JWb3JdMSvdvIsMKifMy9lvdCurSuxCs",
+      authDomain: "seaq-com-project-tracker.firebaseapp.com",
+      databaseURL: "https://seaq-com-project-tracker-default-rtdb.firebaseio.com",
+      projectId: "seaq-com-project-tracker",
+      storageBucket: "seaq-com-project-tracker.firebasestorage.app",
+      messagingSenderId: "624858519664",
+      appId: "1:624858519664:web:546987f95075ce1b45bcb5",
+      measurementId: "G-Z8FF95PK3F"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const DEFAULT_SYSTEMS = [
+      "41702 - Master Clock",
+      "42508 - Automatic Telephone System",
+      "42502 - SCCS",
+      "42510 - PA & GA",
+      "42800 - CCTV",
+      "54600 - Entertainment, TVRO and Reception System",
+      "85500 - LAN_WLAN",
+      "85502 - Rack & Infrastructure"
+    ];
+
+    const STANDARD_TASKS = [
+      "Installation & Wiring Check",
+      "Pre-Commissioning Test Run",
+      "Completion & Show HAT"
+    ];
+
+    const EQUIPMENT_TASKS = [
+      "Main Control Rack Inspection",
+      "Terminal & Sensor Check",
+      "Power Supply & Battery Backup Test"
+    ];
+
+    let projects = [];
+    let activeProjectId = '';
+
+    db.collection("seaq_projects").onSnapshot((snapshot) => {
+      let fetchedProjects = [];
+      snapshot.forEach((doc) => {
+        fetchedProjects.push({ id: doc.id, ...doc.data() });
+      });
+
+      if (fetchedProjects.length === 0) {
+        if (IS_MASTER) {
+          const defaultProj = {
+            name: 'NB968',
+            systems: DEFAULT_SYSTEMS.map(sys => ({
+              name: sys,
+              tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+              equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
+              note: ""
+            }))
+          };
+          db.collection("seaq_projects").add(defaultProj);
+        }
+      } else {
+        projects = fetchedProjects;
+        if (!activeProjectId || !projects.find(p => p.id === activeProjectId)) {
+          activeProjectId = projects[0].id;
+        }
+        render();
+      }
+    });
+
+    function syncToCloud(projId) {
+      if (!IS_MASTER) return;
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        db.collection("seaq_projects").doc(projId).set({
+          name: proj.name,
+          systems: proj.systems
+        });
+      }
+    }
+
+    function calculateSystemProgress(sys) {
+      const allItems = [...sys.tasks, ...sys.equipment];
+      if (allItems.length === 0) return 0;
+      const done = allItems.filter(i => i.completed).length;
+      return Math.round((done / allItems.length) * 100);
+    }
+
+    function render() {
+      const projectListEl = document.getElementById('projectList');
+      projectListEl.innerHTML = '';
+
+      projects.forEach(p => {
+        let totalItems = 0, doneItems = 0;
+        p.systems.forEach(s => {
+          totalItems += s.tasks.length + s.equipment.length;
+          doneItems += s.tasks.filter(t => t.completed).length + s.equipment.filter(e => e.completed).length;
+        });
+
+        const percent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+        let statusClass = percent === 100 ? 'completed' : (percent > 0 ? 'in-progress' : 'not-started');
+        let statusText = percent === 100 ? 'Completed' : (percent > 0 ? 'In Progress' : 'Not Started');
+
+        const li = document.createElement('li');
+        li.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
+        li.onclick = () => { activeProjectId = p.id; render(); };
+        li.innerHTML = `
+          <span style="font-weight:700;">${p.name}</span>
+          <span class="status-badge ${statusClass}">${statusText}</span>
+        `;
+        projectListEl.appendChild(li);
+      });
+
+      const activeProject = projects.find(p => p.id === activeProjectId);
+      if (!activeProject) return;
+
+      document.getElementById('selectedProjectTitle').innerText = `Project: ${activeProject.name}`;
+
+      let projectTotal = 0, projectDone = 0;
+      activeProject.systems.forEach(s => {
+        projectTotal += s.tasks.length + s.equipment.length;
+        projectDone += s.tasks.filter(t => t.completed).length + s.equipment.filter(e => e.completed).length;
+      });
+      const overallPercent = projectTotal > 0 ? Math.round((projectDone / projectTotal) * 100) : 0;
+      let overallClass = overallPercent === 100 ? 'completed' : (overallPercent > 0 ? 'in-progress' : 'not-started');
+
+      document.getElementById('overallChart').innerHTML = `
+        <div class="chart-label">
+          <span>Overall Project Progress</span>
+          <span>${overallPercent}%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${overallClass}" style="width: ${overallPercent}%"></div>
+        </div>
+      `;
+
+      const grid = document.getElementById('systemsGrid');
+      grid.innerHTML = '';
+
+      activeProject.systems.forEach((sys, sysIdx) => {
+        const sysPercent = calculateSystemProgress(sys);
+        let sysClass = sysPercent === 100 ? 'completed' : (sysPercent > 0 ? 'in-progress' : 'not-started');
+        let sysStatusText = sysPercent === 100 ? 'Completed' : (sysPercent > 0 ? 'In Progress' : 'Not Started');
+
+        const card = document.createElement('div');
+        card.className = `system-card ${sysClass}`;
+
+        const disabledAttr = IS_MASTER ? '' : 'disabled';
+
+        const tasksHTML = sys.tasks.map((t, idx) => `
+          <li class="task-item">
+            <input type="checkbox" class="checkbox" ${t.completed ? 'checked' : ''} ${disabledAttr} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'tasks', ${idx})">
+            <span style="${t.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.title}</span>
+          </li>
+        `).join('');
+
+        const equipHTML = sys.equipment.map((e, idx) => `
+          <li class="task-item">
+            <input type="checkbox" class="checkbox" ${e.completed ? 'checked' : ''} ${disabledAttr} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'equipment', ${idx})">
+            <span style="${e.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${e.title}</span>
+          </li>
+        `).join('');
+
+        card.innerHTML = `
+          <div class="system-header">
+            <div class="system-title">${sys.name}</div>
+            <span class="status-badge ${sysClass}">${sysStatusText}</span>
+          </div>
+
+          <div class="section-label">General Tasks</div>
+          <ul class="task-list">${tasksHTML}</ul>
+          <div class="add-inline-wrap master-only">
+            <input id="newTaskInput_${sysIdx}" class="input-sm" placeholder="Add new task..." />
+            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'tasks')">+ Add</button>
+          </div>
+
+          <div class="section-label" style="margin-top:10px;">Equipment Check</div>
+          <ul class="task-list">${equipHTML}</ul>
+          <div class="add-inline-wrap master-only">
+            <input id="newEquipInput_${sysIdx}" class="input-sm" placeholder="Add new equipment..." />
+            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'equipment')">+ Add</button>
+          </div>
+
+          <div class="section-label" style="margin-top:10px;">Notes / Remarks</div>
+          <div class="note-container">
+            <textarea class="note-textarea" ${disabledAttr} placeholder="Write system notes here..." onchange="updateNote('${activeProject.id}', ${sysIdx}, this.value)">${sys.note || ''}</textarea>
+          </div>
+
+          <div class="chart-container">
+            <div class="chart-label">
+              <span>System Progress Bar Chart</span>
+              <span>${sysPercent}%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill ${sysClass}" style="width: ${sysPercent}%"></div>
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function toggleItem(projId, sysIdx, type, itemIdx) {
+      if (!IS_MASTER) return;
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        proj.systems[sysIdx][type][itemIdx].completed = !proj.systems[sysIdx][type][itemIdx].completed;
+        syncToCloud(projId);
+      }
+    }
+
+    function addItem(projId, sysIdx, type) {
+      if (!IS_MASTER) return;
+      const inputId = type === 'tasks' ? `newTaskInput_${sysIdx}` : `newEquipInput_${sysIdx}`;
+      const input = document.getElementById(inputId);
+      const val = input ? input.value.trim() : '';
+
+      if (!val) return alert('Please enter item title!');
+
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        proj.systems[sysIdx][type].push({ title: val, completed: false });
+        syncToCloud(projId);
+      }
+    }
+
+    function updateNote(projId, sysIdx, text) {
+      if (!IS_MASTER) return;
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        proj.systems[sysIdx].note = text;
+        syncToCloud(projId);
+      }
+    }
+
+    if (IS_MASTER) {
+      document.getElementById('addSystemBtn').onclick = () => {
+        const input = document.getElementById('newSystemInput');
+        const name = input.value.trim();
+        if (!name) return alert('Please enter new system name!');
+
+        const proj = projects.find(p => p.id === activeProjectId);
+        if (proj) {
+          proj.systems.push({
+            name: name,
+            tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+            equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
+            note: ""
+          });
+          input.value = '';
+          syncToCloud(activeProjectId);
+        }
+      };
+
+      document.getElementById('addProjectBtn').onclick = () => {
+        const input = document.getElementById('newProjectInput');
+        const name = input.value.trim();
+        if (!name) return alert('Please enter project name');
+
+        const newProj = {
+          name: name,
+          systems: DEFAULT_SYSTEMS.map(sys => ({
+            name: sys,
+            tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+            equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
+            note: ""
+          }))
+        };
+
+        db.collection("seaq_projects").add(newProj).then((docRef) => {
+          activeProjectId = docRef.id;
+          input.value = '';
+        });
+      };
+
+      document.getElementById('deleteProjectBtn').onclick = () => {
+        if (projects.length <= 1) return alert('Cannot delete all projects!');
+        if (confirm('Delete this project?')) {
+          db.collection("seaq_projects").doc(activeProjectId).delete().then(() => {
+            activeProjectId = projects[0]?.id || '';
+          });
+        }
+      };
+    }
+  </script>
+</body>
+</html>
