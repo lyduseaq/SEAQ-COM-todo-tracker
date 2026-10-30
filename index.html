@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SeaQ Communication - Realtime Project Tracker</title>
+
+  <!-- Firebase SDKs (v10 Compat) - thêm Auth để phân quyền thật -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-overlay: rgba(15, 23, 42, 0.82);
+      --panel-bg: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.15);
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+
+      --status-not-started-bg: rgba(100, 116, 139, 0.3);
+      --status-not-started-border: rgba(148, 163, 184, 0.4);
+      --status-not-started-text: #cbd5e1;
+
+      --status-in-progress-bg: rgba(245, 158, 11, 0.25);
+      --status-in-progress-border: rgba(245, 158, 11, 0.6);
+      --status-in-progress-text: #fef08a;
+
+      --status-completed-bg: rgba(16, 185, 129, 0.25);
+      --status-completed-border: rgba(16, 185, 129, 0.6);
+      --status-completed-text: #86efac;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #0f172a;
+      background: linear-gradient(var(--bg-overlay), var(--bg-overlay)),
+                  url('18321f15-f4f9-473a-9d6a-a537c3c68de9.jpg') no-repeat center center fixed #0f172a;
+      background-size: cover;
+      color: var(--text-main);
+    }
+
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    .sidebar {
+      width: 320px;
+      flex-shrink: 0;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--panel-border);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .brand-title { font-size: 20px; font-weight: 800; letter-spacing: 1.5px; color: #fff; }
+    .brand-title span {
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .role-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .role-badge.master { background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); color: #fef08a; }
+    .role-badge.viewer { background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.5); color: #38bdf8; }
+
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; }
+    .sync-dot.offline { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+
+    .auth-row { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+
+    .project-list {
+      list-style: none; margin: 0; padding: 0;
+      display: flex; flex-direction: column; gap: 10px;
+      overflow-y: auto; flex: 1;
+    }
+
+    .project-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 12px 14px; border-radius: 12px; cursor: pointer;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+    }
+    .project-item:hover { background: rgba(255, 255, 255, 0.12); }
+    .project-item:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+    .project-item.active {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.5), rgba(29, 78, 216, 0.6));
+      border-color: rgba(96, 165, 250, 0.6);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-badge {
+      padding: 4px 10px; border-radius: 8px;
+      font-size: 12px; font-weight: 700; border: 1px solid; white-space: nowrap;
+    }
+    .status-badge.not-started { background: var(--status-not-started-bg); border-color: var(--status-not-started-border); color: var(--status-not-started-text); }
+    .status-badge.in-progress { background: var(--status-in-progress-bg); border-color: var(--status-in-progress-border); color: var(--status-in-progress-text); }
+    .status-badge.completed { background: var(--status-completed-bg); border-color: var(--status-completed-border); color: var(--status-completed-text); }
+
+    .main { flex: 1; min-width: 0; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+    .glass-panel {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px; padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .topbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .meta-line { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+
+    .horizontal-systems-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 1fr)); gap: 20px; }
+
+    .system-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px; padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      position: relative; overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .system-card.in-progress { border-color: var(--status-in-progress-border); background: rgba(245, 158, 11, 0.08); }
+    .system-card.completed { border-color: var(--status-completed-border); background: rgba(16, 185, 129, 0.1); }
+    .system-card.completed::after {
+      content: "COMPLETED";
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-12deg);
+      font-size: 32px; font-weight: 900;
+      color: rgba(16, 185, 129, 0.2); letter-spacing: 4px;
+      pointer-events: none; z-index: 0;
+    }
+
+    .system-header, .section-label, .task-list, .chart-container, .add-inline-wrap, .note-container { position: relative; z-index: 1; }
+
+    .system-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .system-title { font-size: 16px; font-weight: 700; color: #fff; overflow-wrap: anywhere; }
+    .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    .section-label {
+      font-size: 13px; font-weight: 700; color: #38bdf8;
+      margin-top: 6px; border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+      padding-bottom: 4px;
+    }
+
+    .task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+
+    .task-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px; padding: 8px 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: 13px;
+    }
+    .task-label { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+    .task-label span { overflow-wrap: anywhere; }
+    .task-label span.done { text-decoration: line-through; opacity: 0.75; color: #cbd5e1; }
+    .item-actions { display: flex; gap: 2px; flex-shrink: 0; }
+
+    .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #10b981; flex-shrink: 0; }
+    .checkbox:disabled { cursor: not-allowed; opacity: 0.6; }
+
+    .icon-btn {
+      background: transparent; border: 1px solid transparent; color: var(--text-muted);
+      border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: 13px; line-height: 1;
+    }
+    .icon-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+    .icon-btn.danger:hover { background: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+
+    .add-inline-wrap { display: flex; gap: 6px; margin-top: 4px; }
+
+    .input-sm {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px; padding: 6px 10px;
+      color: #fff; font-size: 12px; flex: 1; min-width: 0; outline: none;
+    }
+    .input-sm:focus { border-color: #38bdf8; }
+
+    .btn-sm {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8; border-radius: 6px;
+      padding: 6px 10px; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-sm:hover { background: rgba(56, 189, 248, 0.4); }
+
+    .note-container { margin-top: 8px; }
+    .note-textarea {
+      width: 100%; height: 60px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px; padding: 8px 10px;
+      color: #e2e8f0; font-size: 12px;
+      resize: vertical; outline: none; font-family: inherit;
+    }
+    .note-textarea:focus { border-color: #38bdf8; }
+    .note-textarea:disabled { background: rgba(15, 23, 42, 0.5); color: #94a3b8; cursor: not-allowed; }
+
+    .chart-container {
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px; padding: 10px;
+    }
+    .chart-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .progress-bar-bg { height: 12px; background: rgba(255, 255, 255, 0.15); border-radius: 6px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; width: 0%; border-radius: 6px; transition: width 0.4s ease; }
+    .progress-bar-fill.not-started { background: #64748b; }
+    .progress-bar-fill.in-progress { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .progress-bar-fill.completed { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .btn {
+      border: none; border-radius: 10px; padding: 10px 16px;
+      font-weight: 700; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px; font-size: 14px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost { background: rgba(255, 255, 255, 0.08); border: 1px solid var(--panel-border); color: #e2e8f0; padding: 6px 12px; font-size: 12px; }
+    .btn-ghost:hover { background: rgba(255, 255, 255, 0.16); }
+    .btn-success { background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.5); color: #6ee7b7; }
+    .btn-success:hover { background: rgba(16, 185, 129, 0.4); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.4); }
+
+    .input {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px; padding: 10px 14px;
+      color: #fff; outline: none; font-size: 14px;
+    }
+    .input:focus { border-color: #38bdf8; }
+
+    .empty-state { text-align: center; color: var(--text-muted); padding: 40px 20px; grid-column: 1 / -1; }
+
+    /* Viewer: ẩn mọi điều khiển chỉnh sửa */
+    body.is-viewer .master-only { display: none !important; }
+
+    /* Login dialog */
+    dialog {
+      background: #0f172a; color: var(--text-main);
+      border: 1px solid var(--panel-border); border-radius: 16px;
+      padding: 24px; width: min(360px, 92vw);
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+    dialog h2 { margin: 0 0 16px; font-size: 18px; }
+    dialog .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: 13px; color: var(--text-muted); }
+    dialog .field .input { width: 100%; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+    .form-error { color: #fca5a5; font-size: 12px; min-height: 16px; margin: 4px 0; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1e293b; border: 1px solid var(--panel-border);
+      padding: 10px 16px; border-radius: 10px; font-size: 13px;
+      opacity: 0; pointer-events: none; transition: all 0.25s; z-index: 50; max-width: 90vw;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { border-color: rgba(239, 68, 68, 0.6); color: #fca5a5; }
+
+    /* Responsive: điện thoại / tablet */
+    @media (max-width: 900px) {
+      html, body { height: auto; }
+      .app { flex-direction: column; height: auto; overflow: visible; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--panel-border); }
+      .project-list { max-height: 220px; flex: none; }
+      .main { overflow: visible; padding: 16px; }
+      #overallChart { width: 100% !important; }
+      .topbar-actions .input { width: 100% !important; }
+    }
+  </style>
+</head>
+<body class="is-viewer">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-title">SeaQ <span>COMMUNICATION</span></div>
+        <div id="roleBadge" class="role-badge viewer">
+          <div id="syncDot" class="sync-dot"></div> <span id="roleText">VIEWER ONLY</span>
+        </div>
+      </div>
+
+      <div class="auth-row">
+        <button id="authBtn" class="btn btn-ghost" type="button">Master login</button>
+      </div>
+
+      <ul id="projectList" class="project-list"></ul>
+
+      <div class="master-only" style="margin-top: 16px; display: flex; gap: 8px;">
+        <input id="newProjectInput" class="input" style="flex:1; min-width:0" placeholder="New Project (e.g. NB969)" aria-label="New project name" />
+        <button id="addProjectBtn" class="btn btn-primary" type="button">+ Create</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar glass-panel">
+        <div>
+          <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px; overflow-wrap:anywhere;">Connecting Cloud...</h1>
+          <div id="overallChart" class="chart-container" style="width: 320px; margin-top: 10px;"></div>
+          <div id="metaLine" class="meta-line"></div>
+        </div>
+
+        <div class="topbar-actions master-only">
+          <input id="newSystemInput" class="input" style="width: 240px;" placeholder="New System Name" aria-label="New system name" />
+          <button id="addSystemBtn" class="btn btn-success" type="button">+ Add System</button>
+          <button id="renameProjectBtn" class="btn btn-ghost" type="button">Rename</button>
+          <button id="deleteProjectBtn" class="btn btn-danger" type="button">Delete Project</button>
+        </div>
+      </div>
+
+      <div id="systemsGrid" class="horizontal-systems-grid"></div>
+    </main>
+  </div>
+
+  <dialog id="loginDialog">
+    <form id="loginForm">
+      <h2>Master login</h2>
+      <label class="field">Email
+        <input id="loginEmail" class="input" type="email" autocomplete="username" required />
+      </label>
+      <label class="field">Password
+        <input id="loginPassword" class="input" type="password" autocomplete="current-password" required />
+      </label>
+      <div id="loginError" class="form-error" role="alert"></div>
+      <div class="dialog-actions">
+        <button type="button" id="loginCancel" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // =====================================================================
+    //  CẤU HÌNH
+    //  Quyền Master KHÔNG còn dựa vào URL. Master = người đã đăng nhập
+    //  Firebase Auth. Viewer = bất kỳ ai mở trang (chỉ đọc).
+    //  Quyền ghi thật sự được ép bởi Firestore Security Rules (xem firestore.rules).
+    // =====================================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-JWb3JdMSvdvIsMKifMy9lvdCurSuxCs",
+      authDomain: "seaq-com-project-tracker.firebaseapp.com",
+      projectId: "seaq-com-project-tracker",
+      storageBucket: "seaq-com-project-tracker.firebasestorage.app",
+      messagingSenderId: "624858519664",
+      appId: "1:624858519664:web:546987f95075ce1b45bcb5",
+      measurementId: "G-Z8FF95PK3F"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const COL = "seaq_projects";
+
+    const DEFAULT_SYSTEMS = [
+      "41702 - Master Clock",
+      "42508 - Automatic Telephone System",
+      "42502 - SCCS",
+      "42510 - PA & GA",
+      "42800 - CCTV",
+      "54600 - Entertainment, TVRO and Reception System",
+      "85500 - LAN_WLAN",
+      "85502 - Rack & Infrastructure",
+      "81102 - Fire Alarm system"
+    ];
+    const STANDARD_TASKS = ["Installation & Wiring Check", "Pre-Commissioning Test Run", "Completion & Show HAT"];
+    const EQUIPMENT_TASKS = ["Main Control Rack Inspection", "Terminal & Connection Check", "Power Supply & Battery Backup Test"];
+
+    // ---------------------------------------------------------------------
+    //  Tiện ích
+    // ---------------------------------------------------------------------
+    const $ = (id) => document.getElementById(id);
+
+    // Escape mọi dữ liệu người dùng trước khi đưa vào innerHTML (chống XSS)
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+
+    let toastTimer;
+    function toast(msg, type = 'info') {
+      const el = $('toast');
+      el.textContent = msg;
+      el.className = 'show' + (type === 'error' ? ' error' : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+    }
+
+    const statusOf = (pct) => pct === 100
+      ? { cls: 'completed', text: 'Completed' }
+      : pct > 0 ? { cls: 'in-progress', text: 'In Progress' } : { cls: 'not-started', text: 'Not Started' };
+
+    const makeSystem = (name) => ({
+      name,
+      tasks: STANDARD_TASKS.map((t) => ({ title: t, completed: false })),
+      equipment: EQUIPMENT_TASKS.map((e) => ({ title: e, completed: false })),
+      note: ''
+    });
+
+    // Chuẩn hoá dữ liệu đọc từ cloud để tránh lỗi khi thiếu field
+    function normalizeProject(id, data) {
+      const systems = Array.isArray(data.systems) ? data.systems : [];
+      return {
+        id,
+        name: data.name || '(unnamed)',
+        updatedAt: data.updatedAt || null,
+        updatedBy: data.updatedBy || '',
+        systems: systems.map((s) => ({
+          name: s.name || '(unnamed)',
+          tasks: Array.isArray(s.tasks) ? s.tasks : [],
+          equipment: Array.isArray(s.equipment) ? s.equipment : [],
+          note: s.note || ''
+        }))
+      };
+    }
+
+    const countItems = (sys) => {
+      const all = [...sys.tasks, ...sys.equipment];
+      return { total: all.length, done: all.filter((i) => i.completed).length };
+    };
+    const pct = (done, total) => (total > 0 ? Math.round((done / total) * 100) : 0);
+
+    // ---------------------------------------------------------------------
+    //  Trạng thái ứng dụng
+    // ---------------------------------------------------------------------
+    let IS_MASTER = false;
+    let projects = [];
+    let activeProjectId = '';
+    const drafts = {}; // nội dung đang gõ dở (ghi chú, ô thêm mới) để không bị mất khi render lại
+    const noteTimers = {};
+
+    // ---------------------------------------------------------------------
+    //  Auth
+    // ---------------------------------------------------------------------
+    auth.onAuthStateChanged((user) => {
+      IS_MASTER = !!user;
+      document.body.classList.toggle('is-viewer', !IS_MASTER);
+      const badge = $('roleBadge');
+      badge.className = 'role-badge ' + (IS_MASTER ? 'master' : 'viewer');
+      $('roleText').textContent = IS_MASTER ? 'MASTER' : 'VIEWER ONLY';
+      badge.title = IS_MASTER ? (user.email || '') : '';
+      $('authBtn').textContent = IS_MASTER ? 'Sign out' : 'Master login';
+      render();
+    });
+
+    $('authBtn').onclick = () => {
+      if (IS_MASTER) {
+        auth.signOut().then(() => toast('Signed out'));
+      } else {
+        $('loginError').textContent = '';
+        $('loginDialog').showModal();
+        $('loginEmail').focus();
+      }
+    };
+    $('loginCancel').onclick = () => $('loginDialog').close();
+    $('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await auth.signInWithEmailAndPassword($('loginEmail').value.trim(), $('loginPassword').value);
+        $('loginPassword').value = '';
+        $('loginDialog').close();
+        toast('Signed in as Master');
+      } catch (err) {
+        $('loginError').textContent = 'Login failed: ' + (err.code || err.message);
+      }
+    });
+
+    // ---------------------------------------------------------------------
+    //  Đồng bộ realtime (chỉ đọc)
+    // ---------------------------------------------------------------------
+    db.collection(COL).onSnapshot((snapshot) => {
+      $('syncDot').classList.remove('offline');
+      projects = snapshot.docs
+        .map((d) => normalizeProject(d.id, d.data()))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+      if (!projects.find((p) => p.id === activeProjectId)) {
+        activeProjectId = projects[0]?.id || '';
+      }
+      render();
+    }, (err) => {
+      console.error(err);
+      $('syncDot').classList.add('offline');
+      $('selectedProjectTitle').textContent = 'Cannot load data';
+      toast('Cloud connection error: ' + err.message, 'error');
+    });
+
+    // ---------------------------------------------------------------------
+    //  Ghi dữ liệu: mỗi thao tác là 1 transaction
+    //  -> đọc bản mới nhất, áp thay đổi, ghi lại. Hai Master thao tác cùng lúc
+    //  sẽ không còn ghi đè mất thay đổi của nhau.
+    // ---------------------------------------------------------------------
+    async function mutate(projId, fn) {
+      if (!IS_MASTER || !auth.currentUser) return toast('Please sign in as Master first', 'error');
+      const ref = db.collection(COL).doc(projId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error('Project no longer exists');
+          const next = normalizeProject(projId, snap.data());
+          fn(next);
+          tx.set(ref, {
+            name: next.name,
+            systems: next.systems,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: auth.currentUser.email || ''
+          });
+        });
+        return true;
+      } catch (err) {
+        console.error(err);
+        toast('Save failed: ' + (err.code === 'permission-denied' ? 'permission denied (check Security Rules / account)' : err.message), 'error');
+        return false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    //  Render (giữ lại focus + nội dung đang gõ)
+    // ---------------------------------------------------------------------
+    function captureFocus() {
+      const a = document.activeElement;
+      if (a && a.id && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.type !== 'checkbox' && $('systemsGrid').contains(a)) {
+        return { id: a.id, start: a.selectionStart, end: a.selectionEnd };
+      }
+      return null;
+    }
+    function restoreFocus(f) {
+      if (!f) return;
+      const el = $(f.id);
+      if (el) {
+        el.focus();
+        try { el.setSelectionRange(f.start, f.end); } catch (_) { /* ignore */ }
+      }
+    }
+
+    const dis = () => (IS_MASTER ? '' : 'disabled');
+
+    function itemHTML(sysIdx, type, it, idx) {
+      const attrs = `data-sys="${sysIdx}" data-type="${type}" data-idx="${idx}"`;
+      return `
+        <li class="task-item">
+          <label class="task-label">
+            <input type="checkbox" class="checkbox" data-action="toggle" ${attrs} ${it.completed ? 'checked' : ''} ${dis()}>
+            <span class="${it.completed ? 'done' : ''}">${esc(it.title)}</span>
+          </label>
+          <span class="item-actions master-only">
+            <button type="button" class="icon-btn" data-action="rename-item" ${attrs} title="Rename" aria-label="Rename item">✎</button>
+            <button type="button" class="icon-btn danger" data-action="delete-item" ${attrs} title="Delete" aria-label="Delete item">✕</button>
+          </span>
+        </li>`;
+    }
+
+    function render() {
+      const focus = captureFocus();
+
+      // ----- Sidebar -----
+      const listEl = $('projectList');
+      listEl.innerHTML = '';
+      projects.forEach((p) => {
+        let total = 0, done = 0;
+        p.systems.forEach((s) => { const c = countItems(s); total += c.total; done += c.done; });
+        const st = statusOf(pct(done, total));
+
+        const li = document.createElement('li');
+        li.className = 'project-item' + (p.id === activeProjectId ? ' active' : '');
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
+        const select = () => { activeProjectId = p.id; render(); };
+        li.onclick = select;
+        li.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); } };
+        li.innerHTML = `
+          <span style="font-weight:700; overflow-wrap:anywhere;">${esc(p.name)}</span>
+          <span class="status-badge ${st.cls}">${st.text}</span>`;
+        listEl.appendChild(li);
+      });
+
+      const grid = $('systemsGrid');
+      const active = projects.find((p) => p.id === activeProjectId);
+
+      if (!active) {
+        $('selectedProjectTitle').textContent = projects.length ? 'Select a project' : 'No projects yet';
+        $('overallChart').innerHTML = '';
+        $('metaLine').textContent = '';
+        grid.innerHTML = `<div class="empty-state">${IS_MASTER
+          ? 'Create your first project from the sidebar.'
+          : 'No project available. A Master user needs to create one.'}</div>`;
+        return;
+      }
+
+      // ----- Topbar -----
+      $('selectedProjectTitle').textContent = `Project: ${active.name}`;
+
+      let pTotal = 0, pDone = 0;
+      active.systems.forEach((s) => { const c = countItems(s); pTotal += c.total; pDone += c.done; });
+      const overall = pct(pDone, pTotal);
+      const overallCls = statusOf(overall).cls;
+
+      $('overallChart').innerHTML = `
+        <div class="chart-label"><span>Overall Project Progress</span><span>${overall}%</span></div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill ${overallCls}" style="width:${overall}%"></div></div>`;
+
+      const when = active.updatedAt && active.updatedAt.toDate ? active.updatedAt.toDate().toLocaleString() : '';
+      $('metaLine').textContent = when ? `Last updated ${when}${active.updatedBy ? ' by ' + active.updatedBy : ''}` : '';
+
+      // ----- Systems -----
+      grid.innerHTML = '';
+      if (active.systems.length === 0) {
+        grid.innerHTML = '<div class="empty-state">No systems in this project yet.</div>';
+      }
+
+      active.systems.forEach((sys, sysIdx) => {
+        const c = countItems(sys);
+        const sysPct = pct(c.done, c.total);
+        const st = statusOf(sysPct);
+
+        const key = `${active.id}_${sysIdx}`;
+        const noteId = `note_${key}`;
+        const taskInId = `addtask_${key}`;
+        const equipInId = `addequip_${key}`;
+
+        const card = document.createElement('div');
+        card.className = `system-card ${st.cls}`;
+        card.innerHTML = `
+          <div class="system-header">
+            <div class="system-title">${esc(sys.name)}</div>
+            <div class="header-right">
+              <span class="item-actions master-only">
+                <button type="button" class="icon-btn" data-action="rename-system" data-sys="${sysIdx}" title="Rename system" aria-label="Rename system">✎</button>
+                <button type="button" class="icon-btn danger" data-action="delete-system" data-sys="${sysIdx}" title="Delete system" aria-label="Delete system">✕</button>
+              </span>
+              <span class="status-badge ${st.cls}">${st.text}</span>
+            </div>
+          </div>
+
+          <div class="section-label">General Tasks</div>
+          <ul class="task-list">${sys.tasks.map((t, i) => itemHTML(sysIdx, 'tasks', t, i)).join('')}</ul>
+          <div class="add-inline-wrap master-only">
+            <input id="${taskInId}" class="input-sm" data-add="tasks" data-sys="${sysIdx}" placeholder="Add new task..." aria-label="New task title" />
+            <button type="button" class="btn-sm" data-action="add-item" data-sys="${sysIdx}" data-type="tasks">+ Add</button>
+          </div>
+
+          <div class="section-label">Equipment Check</div>
+          <ul class="task-list">${sys.equipment.map((e, i) => itemHTML(sysIdx, 'equipment', e, i)).join('')}</ul>
+          <div class="add-inline-wrap master-only">
+            <input id="${equipInId}" class="input-sm" data-add="equipment" data-sys="${sysIdx}" placeholder="Add new equipment..." aria-label="New equipment title" />
+            <button type="button" class="btn-sm" data-action="add-item" data-sys="${sysIdx}" data-type="equipment">+ Add</button>
+          </div>
+
+          <div class="section-label">Notes / Remarks</div>
+          <div class="note-container">
+            <textarea id="${noteId}" class="note-textarea" data-action="note" data-sys="${sysIdx}" ${dis()}
+              placeholder="Write system notes here..." aria-label="System notes">${esc(drafts[noteId] ?? sys.note)}</textarea>
+          </div>
+
+          <div class="chart-container">
+            <div class="chart-label"><span>System Progress</span><span>${sysPct}%</span></div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill ${st.cls}" style="width:${sysPct}%"></div></div>
+          </div>`;
+        grid.appendChild(card);
+
+        // Khôi phục nội dung gõ dở ở các ô "Add new..."
+        [taskInId, equipInId].forEach((id) => { if (drafts[id]) $(id).value = drafts[id]; });
+      });
+
+      restoreFocus(focus);
+    }
+
+    // ---------------------------------------------------------------------
+    //  Xử lý sự kiện trong lưới (event delegation, không dùng onclick inline)
+    // ---------------------------------------------------------------------
+    const gridEl = $('systemsGrid');
+
+    // Lưu nháp mọi thứ đang gõ; ghi chú tự lưu sau 800ms ngừng gõ
+    gridEl.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t.id) return;
+      if (t.tagName === 'TEXTAREA' || t.dataset.add) drafts[t.id] = t.value;
+      if (t.dataset.action === 'note' && IS_MASTER) {
+        clearTimeout(noteTimers[t.id]);
+        noteTimers[t.id] = setTimeout(() => saveNote(t), 800);
+      }
+    });
+
+    // Rời khỏi ô ghi chú -> lưu ngay
+    gridEl.addEventListener('change', (e) => {
+      const t = e.target;
+      if (t.dataset.action === 'toggle') {
+        const { sys, type, idx } = t.dataset;
+        const checked = t.checked;
+        mutate(activeProjectId, (p) => {
+          const it = p.systems[+sys]?.[type]?.[+idx];
+          if (it) it.completed = checked;
+        }).then((ok) => { if (ok === false) render(); });
+      } else if (t.dataset.action === 'note' && IS_MASTER) {
+        clearTimeout(noteTimers[t.id]);
+        saveNote(t);
+      }
+    });
+
+    function saveNote(el) {
+      const value = el.value;
+      const sysIdx = +el.dataset.sys;
+      mutate(activeProjectId, (p) => {
+        if (p.systems[sysIdx]) p.systems[sysIdx].note = value;
+      }).then((ok) => { if (ok && drafts[el.id] === value) delete drafts[el.id]; });
+    }
+
+    gridEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.dataset.add) {
+        e.preventDefault();
+        addItem(+e.target.dataset.sys, e.target.dataset.add);
+      }
+    });
+
+    gridEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-action]');
+      if (!b || !IS_MASTER) return;
+      const a = b.dataset.action;
+      const sys = +b.dataset.sys, idx = +b.dataset.idx, type = b.dataset.type;
+      const pid = activeProjectId;
+
+      if (a === 'add-item') return addItem(sys, type);
+
+      if (a === 'rename-item') {
+        const cur = projects.find((p) => p.id === pid)?.systems[sys]?.[type]?.[idx];
+        const name = prompt('Rename item:', cur?.title || '');
+        if (name && name.trim()) mutate(pid, (p) => { const it = p.systems[sys]?.[type]?.[idx]; if (it) it.title = name.trim(); });
+      }
+      if (a === 'delete-item') {
+        const cur = projects.find((p) => p.id === pid)?.systems[sys]?.[type]?.[idx];
+        if (confirm(`Delete "${cur?.title}"?`)) mutate(pid, (p) => { p.systems[sys]?.[type]?.splice(idx, 1); });
+      }
+      if (a === 'rename-system') {
+        const cur = projects.find((p) => p.id === pid)?.systems[sys];
+        const name = prompt('Rename system:', cur?.name || '');
+        if (name && name.trim()) mutate(pid, (p) => { if (p.systems[sys]) p.systems[sys].name = name.trim(); });
+      }
+      if (a === 'delete-system') {
+        const cur = projects.find((p) => p.id === pid)?.systems[sys];
+        if (confirm(`Delete system "${cur?.name}" and all its items?`)) mutate(pid, (p) => { p.systems.splice(sys, 1); });
+      }
+    });
+
+    function addItem(sysIdx, type) {
+      if (!IS_MASTER) return;
+      const pid = activeProjectId;
+      const inputId = `${type === 'tasks' ? 'addtask' : 'addequip'}_${pid}_${sysIdx}`;
+      const input = $(inputId);
+      const val = input ? input.value.trim() : '';
+      if (!val) return toast('Please enter item title', 'error');
+
+      mutate(pid, (p) => { p.systems[sysIdx]?.[type]?.push({ title: val, completed: false }); })
+        .then((ok) => { if (ok) { delete drafts[inputId]; const el = $(inputId); if (el) { el.value = ''; el.focus(); } } });
+    }
+
+    // ---------------------------------------------------------------------
+    //  Điều khiển cấp project / system
+    // ---------------------------------------------------------------------
+    $('addSystemBtn').onclick = async () => {
+      const input = $('newSystemInput');
+      const name = input.value.trim();
+      if (!name) return toast('Please enter new system name', 'error');
+      if (!activeProjectId) return toast('Select a project first', 'error');
+      const ok = await mutate(activeProjectId, (p) => { p.systems.push(makeSystem(name)); });
+      if (ok) input.value = '';
+    };
+    $('newSystemInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addSystemBtn').click(); });
+
+    $('addProjectBtn').onclick = async () => {
+      if (!IS_MASTER || !auth.currentUser) return toast('Please sign in as Master first', 'error');
+      const input = $('newProjectInput');
+      const name = input.value.trim();
+      if (!name) return toast('Please enter project name', 'error');
+      if (projects.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast('A project with this name already exists', 'error');
+
+      try {
+        const ref = await db.collection(COL).add({
+          name,
+          systems: DEFAULT_SYSTEMS.map(makeSystem),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: auth.currentUser.email || ''
+        });
+        activeProjectId = ref.id;
+        input.value = '';
+        toast(`Project ${name} created`);
+      } catch (err) {
+        console.error(err);
+        toast('Create failed: ' + err.message, 'error');
+      }
+    };
+    $('newProjectInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addProjectBtn').click(); });
+
+    $('renameProjectBtn').onclick = () => {
+      const cur = projects.find((p) => p.id === activeProjectId);
+      if (!cur) return;
+      const name = prompt('Rename project:', cur.name);
+      if (name && name.trim()) mutate(cur.id, (p) => { p.name = name.trim(); });
+    };
+
+    $('deleteProjectBtn').onclick = async () => {
+      const cur = projects.find((p) => p.id === activeProjectId);
+      if (!IS_MASTER || !cur) return;
+      // Bắt gõ lại tên project để tránh xóa nhầm (không có cách khôi phục)
+      const typed = prompt(`This permanently deletes "${cur.name}".\nType the project name to confirm:`);
+      if (typed === null) return;
+      if (typed.trim() !== cur.name) return toast('Name does not match, nothing deleted', 'error');
+      try {
+        await db.collection(COL).doc(cur.id).delete();
+        toast(`Project ${cur.name} deleted`);
+      } catch (err) {
+        console.error(err);
+        toast('Delete failed: ' + err.message, 'error');
+      }
+    };
+  </script>
+</body>
+</html>
