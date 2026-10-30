@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SeaQ Communication - Realtime Project Tracker</title>
   
+  <!-- Firebase SDKs (v10 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <style>
     :root {
       --bg-overlay: rgba(15, 23, 42, 0.82);
@@ -62,7 +66,7 @@
     }
 
     .brand-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 800;
       letter-spacing: 1.5px;
       color: #ffffff;
@@ -72,6 +76,27 @@
       background: linear-gradient(135deg, #38bdf8, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+    }
+
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
     }
 
     .project-list {
@@ -379,6 +404,9 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-title">SeaQ <span>COMMUNICATION</span></div>
+        <div class="sync-badge">
+          <div class="sync-dot"></div> Live
+        </div>
       </div>
       <ul id="projectList" class="project-list"></ul>
       <div style="margin-top: 16px; display: flex; gap: 8px;">
@@ -390,12 +418,12 @@
     <main class="main">
       <div class="topbar glass-panel">
         <div>
-          <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px;">Project Tracker</h1>
+          <h1 id="selectedProjectTitle" style="margin:0; font-size: 24px;">Connecting Cloud...</h1>
           <div id="overallChart" class="chart-container" style="width: 320px; margin-top: 10px;"></div>
         </div>
         
         <div class="topbar-actions">
-          <input id="newSystemInput" class="input" style="width: 240px;" placeholder="New System Name (e.g. 42512 - VHF)" />
+          <input id="newSystemInput" class="input" style="width: 240px;" placeholder="New System Name" />
           <button id="addSystemBtn" class="btn btn-success">+ Add System</button>
           <button id="deleteProjectBtn" class="btn btn-danger">Delete Project</button>
         </div>
@@ -406,6 +434,20 @@
   </div>
 
   <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-JWb3JdMSvdvIsMKifMy9lvdCurSuxCs",
+      authDomain: "seaq-com-project-tracker.firebaseapp.com",
+      databaseURL: "https://seaq-com-project-tracker-default-rtdb.firebaseio.com",
+      projectId: "seaq-com-project-tracker",
+      storageBucket: "seaq-com-project-tracker.firebasestorage.app",
+      messagingSenderId: "624858519664",
+      appId: "1:624858519664:web:546987f95075ce1b45bcb5",
+      measurementId: "G-Z8FF95PK3F"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     const DEFAULT_SYSTEMS = [
       "41702 - Master Clock",
       "42508 - Automatic Telephone System",
@@ -429,24 +471,43 @@
       "Power Supply & Battery Backup Test"
     ];
 
-    let projects = JSON.parse(localStorage.getItem('seaq_comms_projects_v7')) || [
-      {
-        id: 'nb968',
-        name: 'NB968',
-        systems: DEFAULT_SYSTEMS.map(sys => ({
-          name: sys,
-          tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
-          equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
-          note: ""
-        }))
+    let projects = [];
+    let activeProjectId = '';
+
+    db.collection("seaq_projects").onSnapshot((snapshot) => {
+      let fetchedProjects = [];
+      snapshot.forEach((doc) => {
+        fetchedProjects.push({ id: doc.id, ...doc.data() });
+      });
+
+      if (fetchedProjects.length === 0) {
+        const defaultProj = {
+          name: 'NB968',
+          systems: DEFAULT_SYSTEMS.map(sys => ({
+            name: sys,
+            tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
+            equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
+            note: ""
+          }))
+        };
+        db.collection("seaq_projects").add(defaultProj);
+      } else {
+        projects = fetchedProjects;
+        if (!activeProjectId || !projects.find(p => p.id === activeProjectId)) {
+          activeProjectId = projects[0].id;
+        }
+        render();
       }
-    ];
+    });
 
-    let activeProjectId = projects[0]?.id || 'nb968';
-
-    function saveAndRender() {
-      localStorage.setItem('seaq_comms_projects_v7', JSON.stringify(projects));
-      render();
+    function syncToCloud(projId) {
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        db.collection("seaq_projects").doc(projId).set({
+          name: proj.name,
+          systems: proj.systems
+        });
+      }
     }
 
     function calculateSystemProgress(sys) {
@@ -469,187 +530,4 @@
 
         const percent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
         let statusClass = percent === 100 ? 'completed' : (percent > 0 ? 'in-progress' : 'not-started');
-        let statusText = percent === 100 ? 'Completed' : (percent > 0 ? 'In Progress' : 'Not Started');
-
-        const li = document.createElement('li');
-        li.className = `project-item ${p.id === activeProjectId ? 'active' : ''}`;
-        li.onclick = () => { activeProjectId = p.id; render(); };
-        li.innerHTML = `
-          <span style="font-weight:700;">${p.name}</span>
-          <span class="status-badge ${statusClass}">${statusText}</span>
-        `;
-        projectListEl.appendChild(li);
-      });
-
-      const activeProject = projects.find(p => p.id === activeProjectId);
-      if (!activeProject) return;
-
-      document.getElementById('selectedProjectTitle').innerText = `Project: ${activeProject.name}`;
-
-      let projectTotal = 0, projectDone = 0;
-      activeProject.systems.forEach(s => {
-        projectTotal += s.tasks.length + s.equipment.length;
-        projectDone += s.tasks.filter(t => t.completed).length + s.equipment.filter(e => e.completed).length;
-      });
-      const overallPercent = projectTotal > 0 ? Math.round((projectDone / projectTotal) * 100) : 0;
-      let overallClass = overallPercent === 100 ? 'completed' : (overallPercent > 0 ? 'in-progress' : 'not-started');
-
-      document.getElementById('overallChart').innerHTML = `
-        <div class="chart-label">
-          <span>Overall Project Progress</span>
-          <span>${overallPercent}%</span>
-        </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill ${overallClass}" style="width: ${overallPercent}%"></div>
-        </div>
-      `;
-
-      const grid = document.getElementById('systemsGrid');
-      grid.innerHTML = '';
-
-      activeProject.systems.forEach((sys, sysIdx) => {
-        const sysPercent = calculateSystemProgress(sys);
-        let sysClass = sysPercent === 100 ? 'completed' : (sysPercent > 0 ? 'in-progress' : 'not-started');
-        let sysStatusText = sysPercent === 100 ? 'Completed' : (sysPercent > 0 ? 'In Progress' : 'Not Started');
-
-        const card = document.createElement('div');
-        card.className = `system-card ${sysClass}`;
-
-        const tasksHTML = sys.tasks.map((t, idx) => `
-          <li class="task-item">
-            <input type="checkbox" class="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'tasks', ${idx})">
-            <span style="${t.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.title}</span>
-          </li>
-        `).join('');
-
-        const equipHTML = sys.equipment.map((e, idx) => `
-          <li class="task-item">
-            <input type="checkbox" class="checkbox" ${e.completed ? 'checked' : ''} onchange="toggleItem('${activeProject.id}', ${sysIdx}, 'equipment', ${idx})">
-            <span style="${e.completed ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${e.title}</span>
-          </li>
-        `).join('');
-
-        card.innerHTML = `
-          <div class="system-header">
-            <div class="system-title">${sys.name}</div>
-            <span class="status-badge ${sysClass}">${sysStatusText}</span>
-          </div>
-
-          <div class="section-label">General Tasks</div>
-          <ul class="task-list">${tasksHTML}</ul>
-          <div class="add-inline-wrap">
-            <input id="newTaskInput_${sysIdx}" class="input-sm" placeholder="Add new task..." />
-            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'tasks')">+ Add</button>
-          </div>
-
-          <div class="section-label" style="margin-top:10px;">Equipment Check</div>
-          <ul class="task-list">${equipHTML}</ul>
-          <div class="add-inline-wrap">
-            <input id="newEquipInput_${sysIdx}" class="input-sm" placeholder="Add new equipment..." />
-            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'equipment')">+ Add</button>
-          </div>
-
-          <div class="section-label" style="margin-top:10px;">Notes / Remarks</div>
-          <div class="note-container">
-            <textarea class="note-textarea" placeholder="Write system notes here..." onchange="updateNote('${activeProject.id}', ${sysIdx}, this.value)">${sys.note || ''}</textarea>
-          </div>
-
-          <div class="chart-container">
-            <div class="chart-label">
-              <span>System Progress Bar Chart</span>
-              <span>${sysPercent}%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill ${sysClass}" style="width: ${sysPercent}%"></div>
-            </div>
-          </div>
-        `;
-
-        grid.appendChild(card);
-      });
-    }
-
-    function toggleItem(projId, sysIdx, type, itemIdx) {
-      const proj = projects.find(p => p.id === projId);
-      if (proj) {
-        proj.systems[sysIdx][type][itemIdx].completed = !proj.systems[sysIdx][type][itemIdx].completed;
-        saveAndRender();
-      }
-    }
-
-    function addItem(projId, sysIdx, type) {
-      const inputId = type === 'tasks' ? `newTaskInput_${sysIdx}` : `newEquipInput_${sysIdx}`;
-      const input = document.getElementById(inputId);
-      const val = input ? input.value.trim() : '';
-
-      if (!val) return alert('Please enter item title!');
-
-      const proj = projects.find(p => p.id === projId);
-      if (proj) {
-        proj.systems[sysIdx][type].push({ title: val, completed: false });
-        saveAndRender();
-      }
-    }
-
-    function updateNote(projId, sysIdx, text) {
-      const proj = projects.find(p => p.id === sysIdx ? sysIdx : projId);
-      const activeProj = projects.find(p => p.id === projId);
-      if (activeProj) {
-        activeProj.systems[sysIdx].note = text;
-        localStorage.setItem('seaq_comms_projects_v7', JSON.stringify(projects));
-      }
-    }
-
-    document.getElementById('addSystemBtn').onclick = () => {
-      const input = document.getElementById('newSystemInput');
-      const name = input.value.trim();
-      if (!name) return alert('Please enter new system name!');
-
-      const proj = projects.find(p => p.id === activeProjectId);
-      if (proj) {
-        proj.systems.push({
-          name: name,
-          tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
-          equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
-          note: ""
-        });
-        input.value = '';
-        saveAndRender();
-      }
-    };
-
-    document.getElementById('addProjectBtn').onclick = () => {
-      const input = document.getElementById('newProjectInput');
-      const name = input.value.trim();
-      if (!name) return alert('Please enter project name');
-
-      const newProj = {
-        id: 'proj_' + Date.now(),
-        name: name,
-        systems: DEFAULT_SYSTEMS.map(sys => ({
-          name: sys,
-          tasks: STANDARD_TASKS.map(t => ({ title: t, completed: false })),
-          equipment: EQUIPMENT_TASKS.map(e => ({ title: e, completed: false })),
-          note: ""
-        }))
-      };
-
-      projects.push(newProj);
-      activeProjectId = newProj.id;
-      input.value = '';
-      saveAndRender();
-    };
-
-    document.getElementById('deleteProjectBtn').onclick = () => {
-      if (projects.length <= 1) return alert('Cannot delete all projects!');
-      if (confirm('Delete this project?')) {
-        projects = projects.filter(p => p.id !== activeProjectId);
-        activeProjectId = projects[0].id;
-        saveAndRender();
-      }
-    };
-
-    render();
-  </script>
-</body>
-</html>
+        let statusText = percent === 100 ? 'Completed' : (percent > 0 ? 'In Progress' : 'Not Started
