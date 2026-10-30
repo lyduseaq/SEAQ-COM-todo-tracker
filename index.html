@@ -7,22 +7,22 @@
   
   <style>
     :root {
-      --bg-overlay: rgba(15, 23, 42, 0.88);
-      --panel-bg: rgba(30, 41, 59, 0.8);
-      --panel-border: rgba(255, 255, 255, 0.12);
+      --bg-overlay: rgba(15, 23, 42, 0.82);
+      --panel-bg: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.15);
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
       
-      --status-not-started-bg: rgba(100, 116, 139, 0.25);
-      --status-not-started-border: rgba(148, 163, 184, 0.3);
-      --status-not-started-text: #94a3b8;
+      --status-not-started-bg: rgba(100, 116, 139, 0.3);
+      --status-not-started-border: rgba(148, 163, 184, 0.4);
+      --status-not-started-text: #cbd5e1;
       
-      --status-in-progress-bg: rgba(245, 158, 11, 0.2);
-      --status-in-progress-border: rgba(245, 158, 11, 0.5);
+      --status-in-progress-bg: rgba(245, 158, 11, 0.25);
+      --status-in-progress-border: rgba(245, 158, 11, 0.6);
       --status-in-progress-text: #fef08a;
 
-      --status-completed-bg: rgba(16, 185, 129, 0.2);
-      --status-completed-border: rgba(16, 185, 129, 0.5);
+      --status-completed-bg: rgba(16, 185, 129, 0.25);
+      --status-completed-border: rgba(16, 185, 129, 0.6);
       --status-completed-text: #86efac;
 
       --text-main: #f8fafc;
@@ -34,11 +34,10 @@
     
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      /* Background image với overlay làm tối mờ */
       background: linear-gradient(var(--bg-overlay), var(--bg-overlay)),
-                  radial-gradient(circle at center, #4a5568 0%, #1a202c 70%, #0f172a 100%);
+                  url('18321f15-f4f9-473a-9d6a-a537c3c68de9.jpg') no-repeat center center fixed;
       background-size: cover;
-      background-position: center;
-      background-attachment: fixed;
       color: var(--text-main);
     }
 
@@ -46,8 +45,8 @@
 
     .sidebar {
       width: 320px;
-      background: rgba(15, 23, 42, 0.92);
-      backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
       border-right: 1px solid var(--panel-border);
       padding: 20px 16px;
       display: flex;
@@ -94,18 +93,20 @@
       padding: 12px 14px;
       border-radius: 12px;
       cursor: pointer;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
       transition: all 0.2s ease;
     }
 
     .project-item:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.12);
     }
 
     .project-item.active {
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.4), rgba(29, 78, 216, 0.5));
-      border-color: rgba(96, 165, 250, 0.5);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.5), rgba(29, 78, 216, 0.6));
+      border-color: rgba(96, 165, 250, 0.6);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     .status-badge {
@@ -150,7 +151,7 @@
       border: 1px solid var(--panel-border);
       border-radius: 16px;
       padding: 20px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
 
     .topbar {
@@ -167,23 +168,46 @@
     }
 
     .system-card {
-      background: rgba(15, 23, 42, 0.65);
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
       border: 1px solid var(--panel-border);
       border-radius: 14px;
       padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
 
     .system-card.in-progress {
       border-color: var(--status-in-progress-border);
-      background: rgba(245, 158, 11, 0.05);
+      background: rgba(245, 158, 11, 0.08);
     }
 
     .system-card.completed {
       border-color: var(--status-completed-border);
-      background: rgba(16, 185, 129, 0.05);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .system-card.completed::after {
+      content: "COMPLETED";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-12deg);
+      font-size: 32px;
+      font-weight: 900;
+      color: rgba(16, 185, 129, 0.2);
+      letter-spacing: 4px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .system-header, .section-label, .task-list, .chart-container, .add-inline-wrap {
+      position: relative;
+      z-index: 1;
     }
 
     .system-header {
@@ -201,6 +225,9 @@
       margin-top: 6px;
       border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
       padding-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .task-list {
@@ -213,8 +240,8 @@
     }
 
     .task-item {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
       padding: 8px 10px;
       display: flex;
@@ -225,10 +252,43 @@
 
     .checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #10b981; }
 
+    .add-inline-wrap {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .input-sm {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: #fff;
+      font-size: 12px;
+      flex: 1;
+      outline: none;
+    }
+
+    .btn-sm {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-sm:hover {
+      background: rgba(56, 189, 248, 0.4);
+    }
+
     .chart-container {
       margin-top: 10px;
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 10px;
       padding: 10px;
     }
@@ -243,7 +303,7 @@
 
     .progress-bar-bg {
       height: 12px;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.15);
       border-radius: 6px;
       overflow: hidden;
     }
@@ -274,7 +334,7 @@
     .btn-danger { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; }
 
     .input {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(15, 23, 42, 0.7);
       border: 1px solid var(--panel-border);
       border-radius: 10px;
       padding: 10px 14px;
@@ -334,7 +394,7 @@
       "Power Supply & Battery Backup Test"
     ];
 
-    let projects = JSON.parse(localStorage.getItem('seaq_comms_projects')) || [
+    let projects = JSON.parse(localStorage.getItem('seaq_comms_projects_v5')) || [
       {
         id: 'nb968',
         name: 'NB968',
@@ -349,7 +409,7 @@
     let activeProjectId = projects[0]?.id || 'nb968';
 
     function saveAndRender() {
-      localStorage.setItem('seaq_comms_projects', JSON.stringify(projects));
+      localStorage.setItem('seaq_comms_projects_v5', JSON.stringify(projects));
       render();
     }
 
@@ -441,9 +501,17 @@
 
           <div class="section-label">General Tasks</div>
           <ul class="task-list">${tasksHTML}</ul>
+          <div class="add-inline-wrap">
+            <input id="newTaskInput_${sysIdx}" class="input-sm" placeholder="Add new task..." />
+            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'tasks')">+ Add</button>
+          </div>
 
-          <div class="section-label">Equipment Check</div>
+          <div class="section-label" style="margin-top:10px;">Equipment Check</div>
           <ul class="task-list">${equipHTML}</ul>
+          <div class="add-inline-wrap">
+            <input id="newEquipInput_${sysIdx}" class="input-sm" placeholder="Add new equipment..." />
+            <button class="btn-sm" onclick="addItem('${activeProject.id}', ${sysIdx}, 'equipment')">+ Add</button>
+          </div>
 
           <div class="chart-container">
             <div class="chart-label">
@@ -464,6 +532,20 @@
       const proj = projects.find(p => p.id === projId);
       if (proj) {
         proj.systems[sysIdx][type][itemIdx].completed = !proj.systems[sysIdx][type][itemIdx].completed;
+        saveAndRender();
+      }
+    }
+
+    function addItem(projId, sysIdx, type) {
+      const inputId = type === 'tasks' ? `newTaskInput_${sysIdx}` : `newEquipInput_${sysIdx}`;
+      const input = document.getElementById(inputId);
+      const val = input ? input.value.trim() : '';
+
+      if (!val) return alert('Please enter item title!');
+
+      const proj = projects.find(p => p.id === projId);
+      if (proj) {
+        proj.systems[sysIdx][type].push({ title: val, completed: false });
         saveAndRender();
       }
     }
